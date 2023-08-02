@@ -13,10 +13,18 @@ We could use any image that includes the necessary libraries and dependencies fo
 When using DTK, we should set which version of the Driver Toolkit [image](https://github.com/openshift/driver-toolkit#finding-the-driver-toolkit-image-url-in-the-payload) we are using to match the exact kernel version running on OpenShift nodes. In our case, we are using DTK with KMM and KMM will automatically add the appropriate ${DTK_AUTO} value.
 
 We can get further info at DTK [repository](https://github.com/openshift/driver-toolkit#readme).
-  
 
-# In-Cluster build module from sources
 
+## In-Cluster build module from sources
+
+In this example we will build the kernel module in our cluster from a sources in a git repository.
+First we will add a `ConfigMap` that will contain all the information about the build process such as the image we are using (DTK in our case),
+the remote git repository where sources are hosted or the compiling commands.
+After that we will create the Module object itself which will set the registry where the resulting image will be, the secret for a possible authentication, the previous `ConfigMap` that will be used or which nodes should the pods be scheduled on.
+
+Applying next file in an OpenShift cluster should build and load a kmm-ci-a module in the nodes labeled with a `worker` role:
+
+```yaml
     ---
     apiVersion: v1
     kind: ConfigMap
@@ -59,23 +67,28 @@ We can get further info at DTK [repository](https://github.com/openshift/driver-
                   name: build-module-labs
       imageRepoSecret: 
         name: myrepo-pull-secret
-    
       selector:
         node-role.kubernetes.io/worker: ""
 
- 
- 
+```
 
-# In-Cluster build module from sources and sign it
+## In-Cluster build module from sources and sign it
 
-Generate a private key and certificate and then create new secrets based on them :
+Signed kernel modules provide a mechanism for the kernel to verify the integrity of a module primarily for use with UEFI Secure Boot.
 
+
+This next example is pretty much the same as above except that we will generate a private key and certificate to sign the resulting .ko file after the build process.
+
+
+Generate key and certificate files and create secrets based on them:
+```bash
      openssl req -x509 -sha256 -nodes -days 365 -newkey rsa:2048 -keyout private.key -out certificate.crt
      oc create secret generic mykey --from-file=key=private.key
      oc create secret generic mycert --from-file=cert=certificate.crt
+```
 
 Build and sign resulting module file:
-
+```yaml
     ---
     apiVersion: v1
     kind: ConfigMap
@@ -127,8 +140,9 @@ Build and sign resulting module file:
         name: myrepo-pull-secret
       selector: 
         node-role.kubernetes.io/worker: ""
+```
 
-# Load an existing module
+## Load an existing module
 
     ---
     apiVersion: kmm.sigs.x-k8s.io/v1beta1
@@ -146,12 +160,11 @@ Build and sign resulting module file:
               containerImage: quay.io/myrepo/kmmo-lab:kmm-kmod-4.18.0-372.52.1.el8_6.x86_64
       imageRepoSecret: 
         name: myrepo-pull-secret
-    
       selector:
         node-role.kubernetes.io/worker: ""
-        
 
-# Remove an in-tree module before loading another one
+
+## Remove an in-tree module before loading another one
 
     ---
     apiVersion: kmm.sigs.x-k8s.io/v1beta1
@@ -170,11 +183,10 @@ Build and sign resulting module file:
           inTreeModuleToRemove: joydev
       imageRepoSecret: 
         name: myrepo-pull-secret
-    
       selector:
         node-role.kubernetes.io/worker: ""
 
-# Device Plugin
+## Device Plugin
 We will use an existing plugin to simulate device plugins called  [K8S-dummy-device-plugin](https://github.com/redhat-nfvpe/k8s-dummy-device-plugin) 
 
         ---
@@ -200,7 +212,7 @@ We will use an existing plugin to simulate device plugins called  [K8S-dummy-dev
           selector:
             node-role.kubernetes.io/worker: ""
 
-#  Ordered upgrade of kernel module without reboot
+##  Ordered upgrade of kernel module without reboot
 Label nodes with:
 kmm.node.kubernetes.io/version-module.<module-namespace>.<module-name>=$moduleVersion
 
@@ -230,12 +242,11 @@ Then we can use a new build based on previous build example just adapting the Mo
                   name: build-module-labs
       imageRepoSecret: 
         name: myrepo-pull-secret
-    
       selector:
         node-role.kubernetes.io/worker: "
         
 
-# Loading soft dependencies
+## Loading soft dependencies
     ---
     apiVersion: kmm.sigs.x-k8s.io/v1beta1
     kind: Module
@@ -259,5 +270,5 @@ Then we can use a new build based on previous build example just adapting the Mo
       selector:
         node-role.kubernetes.io/worker: ""
 
-# Troubleshoot
+## Troubleshoot
 
