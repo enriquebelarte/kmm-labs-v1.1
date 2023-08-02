@@ -170,7 +170,7 @@ This is the simplest example in the Labs. We have an existing image of the kerne
 We might need to remove an existing in-tree module before loading an out-of-tree one.
 Some use cases may be including the addition of more features, fixes, or patches to the out-of-tree module for the same driver, as well as encountering incompatibilities between the in-tree and out-of-tree modules.
 
-To achieve this we can remove in-tree modules just adding `inTreeModuleToRemove: <NameoftheModule>` :
+To achieve this we can remove in-tree modules just adding `inTreeModuleToRemove: <NameoftheModule>`. In our example we wil remove `joydev` module which is the standard in-tree driver for joysticks and similar devices:
 
 ```yaml
     ---
@@ -266,6 +266,8 @@ Then we can use a new build based on previous build example just adapting the Mo
 ```
 
 ## Loading soft dependencies
+
+Kernel modules sometimes have dependencies on others modules so those dependencies have to be loaded in advance. In the following example `kmm-ci-a` depends on `kmm-ci-b` so we will set `modulesLoadingOrder` and then the list with the `moduleName` as the first entry followed by all of its dependencies. In our case that is just `kmm-ci-b` but it could be a longer list.
 
 ```yaml
     ---
