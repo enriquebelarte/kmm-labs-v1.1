@@ -1,0 +1,263 @@
+# KMM v1.1 Labs
+
+KMM Labs is a series of examples and use cases of Kernel Module Management Operator running on an Openshift cluster.
+
+## Installation
+
+In order to know more about what KMM is and how to install it you can refer to the [documentation](https://docs.openshift.com/container-platform/4.13/hardware_enablement/kmm-kernel-module-management.html) site.
+
+## Driver Toolkit
+
+We could use any image that includes the necessary libraries and dependencies for building a kernel module for our specific version. However, for ease, we can leverage Driver Toolkit (DTK), which is a container image used as a base image for building kernel modules.
+
+When using DTK, we should set which version of the Driver Toolkit [image](https://github.com/openshift/driver-toolkit#finding-the-driver-toolkit-image-url-in-the-payload) we are using to match the exact kernel version running on OpenShift nodes. In our case, we are using DTK with KMM and KMM will automatically add the appropriate ${DTK_AUTO} value.
+
+We can get further info at DTK [repository](https://github.com/openshift/driver-toolkit#readme).
+  
+
+# In-Cluster build module from sources
+
+    ---
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: build-module-labs
+      namespace: openshift-kmm
+    data:
+      dockerfile: |
+        ARG DTK_AUTO
+        ARG KERNEL_VERSION
+        FROM ${DTK_AUTO} as builder
+        WORKDIR /build/
+        RUN git clone -b main --single-branch https://github.com/rh-ecosystem-edge/kernel-module-management.git
+        WORKDIR kernel-module-management/ci/kmm-kmod/
+        RUN make
+        FROM docker.io/redhat/ubi8-minimal
+        ARG KERNEL_VERSION
+        RUN microdnf -y install kmod openssl && \
+            microdnf clean all && \
+            rm -rf /var/cache/yum
+        RUN mkdir -p /opt/lib/modules/${KERNEL_VERSION}
+        COPY --from=builder /build/kernel-module-management/ci/kmm-kmod/*.ko /opt/lib/modules/${KERNEL_VERSION}/
+        RUN /usr/sbin/depmod -b /opt
+    ---
+    apiVersion: kmm.sigs.x-k8s.io/v1beta1
+    kind: Module
+    metadata:
+      name: kmm-ci-a
+      namespace: openshift-kmm
+    spec:
+      moduleLoader:
+        container:
+          modprobe:
+            moduleName: kmm-ci-a
+          kernelMappings:
+            - regexp: '^.*\.x86_64$'
+              containerImage: quay.io/myrepo/kmmo-lab:kmm-kmod-${KERNEL_FULL_VERSION}
+              build:
+                dockerfileConfigMap:
+                  name: build-module-labs
+      imageRepoSecret: 
+        name: myrepo-pull-secret
+    
+      selector:
+        node-role.kubernetes.io/worker: ""
+
+ 
+ 
+
+# In-Cluster build module from sources and sign it
+
+Generate a private key and certificate and then create new secrets based on them :
+
+     openssl req -x509 -sha256 -nodes -days 365 -newkey rsa:2048 -keyout private.key -out certificate.crt
+     oc create secret generic mykey --from-file=key=private.key
+     oc create secret generic mycert --from-file=cert=certificate.crt
+
+Build and sign resulting module file:
+
+    ---
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: labs-dockerfile
+      namespace: openshift-kmm
+    data:
+      dockerfile: |
+        ARG DTK_AUTO
+        ARG KERNEL_VERSION
+        FROM ${DTK_AUTO} as builder
+        WORKDIR /build/
+        RUN git clone -b main --single-branch https://github.com/rh-ecosystem-edge/kernel-module-management.git
+        WORKDIR kernel-module-management/ci/kmm-kmod/
+        RUN make
+        FROM docker.io/redhat/ubi8-minimal
+        ARG KERNEL_VERSION
+        RUN microdnf -y install kmod openssl && \
+            microdnf clean all && \
+            rm -rf /var/cache/yum
+        RUN mkdir -p /opt/lib/modules/${KERNEL_VERSION}
+        COPY --from=builder /build/kernel-module-management/ci/kmm-kmod/*.ko /opt/lib/modules/${KERNEL_VERSION}/
+        RUN /usr/sbin/depmod -b /opt
+    ---
+    apiVersion: kmm.sigs.x-k8s.io/v1beta1
+    kind: Module
+    metadata:
+      name: labs-signed-module
+      namespace: openshift-kmm
+    spec:
+      moduleLoader:
+        container:
+          modprobe:
+            moduleName: kmm_ci_a
+          kernelMappings:
+            - regexp: '^.*\.x86_64$'
+              containerImage: quay.io/myrepo/kmmo-lab:signed-module-1.0
+              build:
+                dockerfileConfigMap:
+                  name: labs-dockerfile
+              sign:
+                keySecret:
+                  name: mykey
+                certSecret:
+                  name: mycert
+                filesToSign:
+                  - /opt/lib/modules/$KERNEL_FULL_VERSION/kmm_ci_a.ko
+      imageRepoSecret: 
+        name: myrepo-pull-secret
+      selector: 
+        node-role.kubernetes.io/worker: ""
+
+# Load an existing module
+
+    ---
+    apiVersion: kmm.sigs.x-k8s.io/v1beta1
+    kind: Module
+    metadata:
+      name: kmm-ci-a
+      namespace: openshift-kmm
+    spec:
+      moduleLoader:
+        container:
+          modprobe:
+            moduleName: kmm-ci-a
+          kernelMappings:
+            - literal: '4.18.0-372.52.1.el8_6.x86_64'
+              containerImage: quay.io/myrepo/kmmo-lab:kmm-kmod-4.18.0-372.52.1.el8_6.x86_64
+      imageRepoSecret: 
+        name: myrepo-pull-secret
+    
+      selector:
+        node-role.kubernetes.io/worker: ""
+        
+
+# Remove an in-tree module before loading another one
+
+    ---
+    apiVersion: kmm.sigs.x-k8s.io/v1beta1
+    kind: Module
+    metadata:
+      name: kmm-ci-a
+      namespace: openshift-kmm
+    spec:
+      moduleLoader:
+        container:
+          modprobe:
+            moduleName: kmm-ci-a
+          kernelMappings:
+            - literal: '4.18.0-372.52.1.el8_6.x86_64'
+              containerImage: quay.io/myrepo/kmmo-lab:kmm-kmod-4.18.0-372.52.1.el8_6.x86_64
+          inTreeModuleToRemove: joydev
+      imageRepoSecret: 
+        name: myrepo-pull-secret
+    
+      selector:
+        node-role.kubernetes.io/worker: ""
+
+# Device Plugin
+We will use an existing plugin to simulate device plugins called  [K8S-dummy-device-plugin](https://github.com/redhat-nfvpe/k8s-dummy-device-plugin) 
+
+        ---
+        apiVersion: kmm.sigs.x-k8s.io/v1beta1
+        kind: Module
+        metadata:
+          name: kmm-ci-a
+          namespace: openshift-kmm
+        spec:
+          devicePlugin:
+            container:
+              image: "quay.io/myrepo/oc-dummy-device-plugin:1.1"
+          moduleLoader:
+            container:
+              modprobe:
+                moduleName: kmm-ci-a
+              kernelMappings:
+                - literal: '4.18.0-372.52.1.el8_6.x86_64'
+                  containerImage: quay.io/myrepo/kmmo-lab:kmm-kmod-4.18.0-372.52.1.el8_6.x86_64
+          imageRepoSecret:·
+            name: myrepo-pull-secret
+    ····
+          selector:
+            node-role.kubernetes.io/worker: ""
+
+#  Ordered upgrade of kernel module without reboot
+Label nodes with:
+kmm.node.kubernetes.io/version-module.<module-namespace>.<module-name>=$moduleVersion
+
+In our case we'll use this example:
+
+    oc label node my-node-1 kmm.node.kubernetes.io/version-module.openshift-kmm.kmm-ci-a=1.0
+
+Then we can use a new build based on previous build example just adapting the ModuleLoader and reusing existing Configmap for build. Make sure you deleted Module from past examples:
+
+    ---
+    apiVersion: kmm.sigs.x-k8s.io/v1beta1
+    kind: Module
+    metadata:
+      name: kmm-ci-a
+      namespace: openshift-kmm
+    spec:
+      moduleLoader:
+        container:
+          version: "1.0"
+          modprobe:
+            moduleName: kmm-ci-a
+          kernelMappings:
+            - regexp: '^.*\.x86_64$'
+              containerImage: quay.io/myrepo/kmmo-lab:kmm-kmod-${KERNEL_FULL_VERSION}-v1.0
+              build:
+                dockerfileConfigMap:
+                  name: build-module-labs
+      imageRepoSecret: 
+        name: myrepo-pull-secret
+    
+      selector:
+        node-role.kubernetes.io/worker: "
+        
+
+# Loading soft dependencies
+    ---
+    apiVersion: kmm.sigs.x-k8s.io/v1beta1
+    kind: Module
+    metadata:
+      name: kmm-ci-a
+      namespace: openshift-kmm
+    spec:
+      moduleLoader:
+        container:
+          modprobe:
+            moduleName: kmm-ci-a
+            modulesLoadingOrder:
+              - kmm-ci-a
+              - kmm-ci-b
+          kernelMappings:
+            - regexp: '^.*\.x86_64$'
+              containerImage: quay.io/ebelarte/kmmo-lab:kmm-kmod-${KERNEL_FULL_VERSION}
+      imageRepoSecret: 
+        name: ebelarte-pull-secret
+    
+      selector:
+        node-role.kubernetes.io/worker: ""
+
+# Troubleshoot
+
