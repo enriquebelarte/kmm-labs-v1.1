@@ -143,7 +143,7 @@ Build and sign resulting module file:
 ```
 
 ## Load an existing module
-This is be the simplest example in the Labs. We have an existing image of the kernel module for a specific kernel version and we want KMM to manage and load it:
+This is the simplest example in the Labs. We have an existing image of the kernel module for a specific kernel version and we want KMM to manage and load it:
 ```yaml
     ---
     apiVersion: kmm.sigs.x-k8s.io/v1beta1
@@ -197,8 +197,11 @@ To achieve this we can remove in-tree modules just adding `inTreeModuleToRemove:
 ## Device Plugin
 
 We will use an existing plugin to simulate device plugins called  [K8S-dummy-device-plugin](https://github.com/redhat-nfvpe/k8s-dummy-device-plugin) 
-
+```bash
+$ oc exec -it dummy-pod -- printenv | grep DUMMY_DEVICES
+DUMMY_DEVICES=dev_3,dev_4
 ```
+```yaml
         ---
         apiVersion: kmm.sigs.x-k8s.io/v1beta1
         kind: Module
