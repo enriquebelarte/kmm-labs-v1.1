@@ -143,7 +143,8 @@ Build and sign resulting module file:
 ```
 
 ## Load an existing module
-
+This is be the simplest example in the Labs. We have an existing image of the kernel module for a specific kernel version and we want KMM to manage and load it:
+```yaml
     ---
     apiVersion: kmm.sigs.x-k8s.io/v1beta1
     kind: Module
@@ -162,10 +163,16 @@ Build and sign resulting module file:
         name: myrepo-pull-secret
       selector:
         node-role.kubernetes.io/worker: ""
-
+```
 
 ## Remove an in-tree module before loading another one
 
+We might need to remove an existing in-tree module before loading an out-of-tree one.
+Some use cases may be including the addition of more features, fixes, or patches to the out-of-tree module for the same driver, as well as encountering incompatibilities between the in-tree and out-of-tree modules.
+
+To achieve this we can remove in-tree modules just adding `inTreeModuleToRemove: <NameoftheModule>` :
+
+```yaml
     ---
     apiVersion: kmm.sigs.x-k8s.io/v1beta1
     kind: Module
@@ -185,10 +192,13 @@ Build and sign resulting module file:
         name: myrepo-pull-secret
       selector:
         node-role.kubernetes.io/worker: ""
+```
 
 ## Device Plugin
+
 We will use an existing plugin to simulate device plugins called  [K8S-dummy-device-plugin](https://github.com/redhat-nfvpe/k8s-dummy-device-plugin) 
 
+```
         ---
         apiVersion: kmm.sigs.x-k8s.io/v1beta1
         kind: Module
@@ -211,17 +221,23 @@ We will use an existing plugin to simulate device plugins called  [K8S-dummy-dev
     ····
           selector:
             node-role.kubernetes.io/worker: ""
+```
 
 ##  Ordered upgrade of kernel module without reboot
+
 Label nodes with:
+```
 kmm.node.kubernetes.io/version-module.<module-namespace>.<module-name>=$moduleVersion
+```
 
 In our case we'll use this example:
-
+```bash
     oc label node my-node-1 kmm.node.kubernetes.io/version-module.openshift-kmm.kmm-ci-a=1.0
+```
 
 Then we can use a new build based on previous build example just adapting the ModuleLoader and reusing existing Configmap for build. Make sure you deleted Module from past examples:
 
+```yaml
     ---
     apiVersion: kmm.sigs.x-k8s.io/v1beta1
     kind: Module
@@ -243,10 +259,12 @@ Then we can use a new build based on previous build example just adapting the Mo
       imageRepoSecret: 
         name: myrepo-pull-secret
       selector:
-        node-role.kubernetes.io/worker: "
-        
+        node-role.kubernetes.io/worker: ""
+```
 
 ## Loading soft dependencies
+
+```yaml
     ---
     apiVersion: kmm.sigs.x-k8s.io/v1beta1
     kind: Module
@@ -266,9 +284,8 @@ Then we can use a new build based on previous build example just adapting the Mo
               containerImage: quay.io/ebelarte/kmmo-lab:kmm-kmod-${KERNEL_FULL_VERSION}
       imageRepoSecret: 
         name: ebelarte-pull-secret
-    
       selector:
         node-role.kubernetes.io/worker: ""
-
+```
 ## Troubleshoot
 
