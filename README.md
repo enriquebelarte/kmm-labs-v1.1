@@ -151,6 +151,7 @@ Build and sign resulting module file:
 ```
 
 ## Load an existing module
+
 This is the simplest example in the Labs. We have an existing image of the kernel module for a specific kernel version and we want KMM to manage and load it:
 
 **load.yaml**
@@ -251,8 +252,10 @@ DUMMY_DEVICES=dev_3,dev_4
 
 ##  Ordered upgrade of kernel module without reboot
 
-Whenever we need to upgrade a kernel module we should do it node by node so the impact on the workload running in the cluster.
-We should first label the specific node in this format:
+To minimize the impact on the workload running in the cluster, kernel module upgrades should be performed on a per-node basis.
+
+First, label the specific node that requires the kernel module upgrade. Use the following format:
+
 
 ```
 kmm.node.kubernetes.io/version-module.<module-namespace>.<module-name>=$moduleVersion
