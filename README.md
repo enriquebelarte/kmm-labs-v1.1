@@ -242,7 +242,7 @@ In our case we'll use this example:
 
 Then we can use a new build based on previous build example just adapting the ModuleLoader and reusing existing Configmap for build. Make sure you have deleted any  Module object left from past examples:
 
-`build_v1.yaml`
+**build_v1.yaml**
 ```yaml
     ---
     apiVersion: kmm.sigs.x-k8s.io/v1beta1
