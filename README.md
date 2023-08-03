@@ -17,7 +17,7 @@ When using DTK, we should set which version of the Driver Toolkit [image](https:
 We can get further info at DTK [repository](https://github.com/openshift/driver-toolkit#readme).
 
 
-## In-Cluster build module from sources
+## Building In-Cluster Modules from Sources
 
 In this example, we will demonstrate how to build the kernel module in our cluster using sources from a git repository. The process involves several steps:
 
@@ -77,7 +77,7 @@ Applying next file in an OpenShift cluster should build and load a kmm-ci-a modu
 
 ```
 
-## In-Cluster build module from sources and sign it
+## Building and Signing In-Cluster Modules from Sources
 
 Signed kernel modules provide a mechanism for the kernel to verify the integrity of a module primarily for use with UEFI Secure Boot.
 
@@ -150,7 +150,7 @@ Build and sign resulting module file:
         node-role.kubernetes.io/worker: ""
 ```
 
-## Load an existing module
+## Load Module from an existing image
 
 This is the simplest example in the Labs. We have an existing image of the kernel module for a specific kernel version and we want KMM to manage and load it:
 
@@ -176,7 +176,7 @@ This is the simplest example in the Labs. We have an existing image of the kerne
         node-role.kubernetes.io/worker: ""
 ```
 
-## Remove an in-tree module before loading another one
+## Replacing In-Tree Modules: Removing the existing Module before loading a new One
 
 We might need to remove an existing in-tree module before loading an out-of-tree one.
 Some use cases may be including the addition of more features, fixes, or patches to the out-of-tree module for the same driver, as well as encountering incompatibilities between the in-tree and out-of-tree modules.
@@ -250,7 +250,7 @@ $ oc exec -it dummy-pod -- printenv | grep DUMMY_DEVICES
 DUMMY_DEVICES=dev_3,dev_4
 ```
 
-##  Ordered upgrade of kernel module without reboot
+##  Seamless upgrade of kernel Module: Orderly process without reboot
 
 To minimize the impact on the workload running in the cluster, kernel module upgrades should be performed on a per-node basis.
 
