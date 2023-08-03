@@ -228,7 +228,9 @@ DUMMY_DEVICES=dev_3,dev_4
 
 ##  Ordered upgrade of kernel module without reboot
 
-Label nodes with:
+Whenever we need to upgrade a kernel module we should do it node by node so the impact on the workload running in the cluster.
+We should first label the specific node in this format:
+
 ```
 kmm.node.kubernetes.io/version-module.<module-namespace>.<module-name>=$moduleVersion
 ```
@@ -238,9 +240,9 @@ In our case we'll use this example:
     oc label node my-node-1 kmm.node.kubernetes.io/version-module.openshift-kmm.kmm-ci-a=1.0
 ```
 
-Then we can use a new build based on previous build example just adapting the ModuleLoader and reusing existing Configmap for build. Make sure you deleted Module from past examples:
+Then we can use a new build based on previous build example just adapting the ModuleLoader and reusing existing Configmap for build. Make sure you have deleted any  Module object left from past examples:
 
-```yaml
+```yaml {}[build_v1.yaml]
     ---
     apiVersion: kmm.sigs.x-k8s.io/v1beta1
     kind: Module
@@ -264,6 +266,7 @@ Then we can use a new build based on previous build example just adapting the Mo
       selector:
         node-role.kubernetes.io/worker: ""
 ```
+
 
 ## Loading soft dependencies
 
