@@ -2,9 +2,11 @@
 
 KMM Labs is a series of examples and use cases of Kernel Module Management Operator running on an Openshift cluster.
 
+
 ## Installation
 
-In order to know more about what KMM is and how to install it you can refer to the [documentation](https://docs.openshift.com/container-platform/4.13/hardware_enablement/kmm-kernel-module-management.html) site.
+If you want to learn more about KMM and how to install it, you can refer to the [documentation](https://docs.openshift.com/container-platform/4.13/hardware_enablement/kmm-kernel-module-management.html). The documentation provides detailed information about KMM and step-by-step instructions for the installation process.
+
 
 ## Driver Toolkit
 
@@ -17,12 +19,15 @@ We can get further info at DTK [repository](https://github.com/openshift/driver-
 
 ## In-Cluster build module from sources
 
-In this example we will build the kernel module in our cluster from a sources in a git repository.
-First we will add a `ConfigMap` that will contain all the information about the build process such as the image we are using (DTK in our case),
-the remote git repository where sources are hosted or the compiling commands.
-After that we will create the Module object itself which will set the registry where the resulting image will be, the secret for a possible authentication, the previous `ConfigMap` that will be used or which nodes should the pods be scheduled on.
+In this example, we will demonstrate how to build the kernel module in our cluster using sources from a git repository. The process involves several steps:
+
+1) Adding a ConfigMap: We will create a ConfigMap to store all the necessary information for the build process, including the image we are using (DTK in this case), the remote git repository containing the sources, and the compiling commands.
+
+2) Creating the Module object: Next, we'll create the Module object itself. It will configure the registry for the resulting image, set up a secret for possible authentication, specify the previously created ConfigMap for use, and define the nodes where the pods should be scheduled.
 
 Applying next file in an OpenShift cluster should build and load a kmm-ci-a module in the nodes labeled with a `worker` role:
+
+**in_tree_build.yaml**
 
 ```yaml
     ---
@@ -61,7 +66,7 @@ Applying next file in an OpenShift cluster should build and load a kmm-ci-a modu
             moduleName: kmm-ci-a
           kernelMappings:
             - regexp: '^.*\.x86_64$'
-              containerImage: quay.io/myrepo/kmmo-lab:kmm-kmod-${KERNEL_FULL_VERSION}
+              containerImage: quay.io/myrepo/kmmo-lab:kmm-kmod-${KERNEL_FULL_VERSION}-v1.1
               build:
                 dockerfileConfigMap:
                   name: build-module-labs
@@ -81,6 +86,7 @@ This next example is pretty much the same as above except that we will generate 
 
 
 Generate key and certificate files and create secrets based on them:
+
 ```bash
      openssl req -x509 -sha256 -nodes -days 365 -newkey rsa:2048 -keyout private.key -out certificate.crt
      oc create secret generic mykey --from-file=key=private.key
@@ -88,6 +94,8 @@ Generate key and certificate files and create secrets based on them:
 ```
 
 Build and sign resulting module file:
+
+**build_and_sign.yaml**
 ```yaml
     ---
     apiVersion: v1
@@ -144,6 +152,8 @@ Build and sign resulting module file:
 
 ## Load an existing module
 This is the simplest example in the Labs. We have an existing image of the kernel module for a specific kernel version and we want KMM to manage and load it:
+
+**load.yaml**
 ```yaml
     ---
     apiVersion: kmm.sigs.x-k8s.io/v1beta1
@@ -172,6 +182,7 @@ Some use cases may be including the addition of more features, fixes, or patches
 
 To achieve this we can remove in-tree modules just adding `inTreeModuleToRemove: <NameoftheModule>`. In our example we wil remove `joydev` module which is the standard in-tree driver for joysticks and similar devices:
 
+**remove_in-tree.yaml**
 ```yaml
     ---
     apiVersion: kmm.sigs.x-k8s.io/v1beta1
@@ -240,7 +251,7 @@ In our case we'll use this example:
     oc label node my-node-1 kmm.node.kubernetes.io/version-module.openshift-kmm.kmm-ci-a=1.0
 ```
 
-Then we can use a new build based on previous build example just adapting the ModuleLoader and reusing existing Configmap for build. Make sure you have deleted any  Module object left from past examples:
+Then we can use a new build based on previous build example by just adapting the ModuleLoader (adding `version` and specific `containerImage` for that version) and reusing existing Configmap for build. Make sure you have deleted any Module object left from past examples and apply following Module:
 
 **build_v1.yaml**
 ```yaml
@@ -268,11 +279,34 @@ Then we can use a new build based on previous build example just adapting the Mo
         node-role.kubernetes.io/worker: ""
 ```
 
+A new module named `kmm-ci-a` with object version 1.0 and image `kmm-kmod-${KERNEL_FULL_VERSION}-v1.0` will be created at node `my-node-1`.
+If we look back at the first example in the Lab about In-Cluster building from sources we will find that containerImage was `kmm-kmod-${KERNEL_FULL_VERSION}-v1.1` and if made all the examples we should have that v1.1 image at our registry.
+Let's pretend that we want to update our actual v1.0 module to v1.1.
+1) Check in advance that you have both v1.0 and v1.1 images at your registry.
+2) Remove 1.0 label from the node:
+   ```
+    oc label node my-node-1 kmm.node.kubernetes.io/version-module.openshift-kmm.kmm-ci-a-
+   ```
+3) Check that unlabeling the node killed the Module pods.
+4) Label with the new desired version:
+   ```
+    oc label node my-node-1 kmm.node.kubernetes.io/version-module.openshift-kmm.kmm-ci-a=1.1
+   ```
+5) Edit the module object and change both `version` and `containerImage` with the new version number and matching image 
+   (In our example 1.1 for the version and `kmm-kmod-${KERNEL_FULL_VERSION}-v1.1` for the containerImage):
+   ```
+   oc edit module kmm-ci-a
+   ```
+6) The new module version is loaded.
+
 
 ## Loading soft dependencies
 
 Kernel modules sometimes have dependencies on others modules so those dependencies have to be loaded in advance. In the following example `kmm-ci-a` depends on `kmm-ci-b` so we will set `modulesLoadingOrder` and then the list with the `moduleName` as the first entry followed by all of its dependencies. In our case that is just `kmm-ci-b` but it could be a longer list.
 
+Apply next Module and `kmm-ci-b` will be loaded before `kmm-ci-a`:
+
+**load_dependencies.yaml**
 ```yaml
     ---
     apiVersion: kmm.sigs.x-k8s.io/v1beta1
@@ -290,9 +324,9 @@ Kernel modules sometimes have dependencies on others modules so those dependenci
               - kmm-ci-b
           kernelMappings:
             - regexp: '^.*\.x86_64$'
-              containerImage: quay.io/ebelarte/kmmo-lab:kmm-kmod-${KERNEL_FULL_VERSION}
+              containerImage: quay.io/myrepo/kmmo-lab:kmm-kmod-${KERNEL_FULL_VERSION}
       imageRepoSecret: 
-        name: ebelarte-pull-secret
+        name: myrepo-pull-secret
       selector:
         node-role.kubernetes.io/worker: ""
 ```
