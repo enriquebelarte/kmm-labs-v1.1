@@ -205,13 +205,22 @@ To achieve this we can remove in-tree modules just adding `inTreeModuleToRemove:
         node-role.kubernetes.io/worker: ""
 ```
 
-## Device Plugin
-
-We will use an existing plugin to simulate device plugins called  [K8S-dummy-device-plugin](https://github.com/redhat-nfvpe/k8s-dummy-device-plugin) 
-```bash
-$ oc exec -it dummy-pod -- printenv | grep DUMMY_DEVICES
-DUMMY_DEVICES=dev_3,dev_4
+We can confirm that `joydev` module is not loaded now just by listing the modules in one of our module pods and check that there is no output:
 ```
+enrique@fedora labsv1.1 → oc exec -it kmm-ci-a-chsmj-bznrj -- lsmod | grep joydev
+enrique@fedora labsv1.1 → 
+```
+
+## Device Plugins
+
+
+Device plugins play a crucial role in allocating and reporting specific hardware devices to the cluster. In KMM, you can load device plugin images as part of the Module object.
+
+For this example, we will utilize an existing plugin called  [K8S-dummy-device-plugin](https://github.com/redhat-nfvpe/k8s-dummy-device-plugin) to simulate device plugins. This plugin provides a way to emulate device plugins and test their functionality within the cluster.
+
+It just loads some environment variables as if they were reported by the hardware and then used by the moduleLoader.
+
+**device_plugin.yaml**
 ```yaml
         ---
         apiVersion: kmm.sigs.x-k8s.io/v1beta1
@@ -232,9 +241,12 @@ DUMMY_DEVICES=dev_3,dev_4
                   containerImage: quay.io/myrepo/kmmo-lab:kmm-kmod-4.18.0-372.52.1.el8_6.x86_64
           imageRepoSecret:·
             name: myrepo-pull-secret
-    ····
           selector:
             node-role.kubernetes.io/worker: ""
+```
+```bash
+$ oc exec -it dummy-pod -- printenv | grep DUMMY_DEVICES
+DUMMY_DEVICES=dev_3,dev_4
 ```
 
 ##  Ordered upgrade of kernel module without reboot
@@ -302,7 +314,7 @@ Let's pretend that we want to update our actual v1.0 module to v1.1.
 
 ## Loading soft dependencies
 
-Kernel modules sometimes have dependencies on others modules so those dependencies have to be loaded in advance. In the following example `kmm-ci-a` depends on `kmm-ci-b` so we will set `modulesLoadingOrder` and then the list with the `moduleName` as the first entry followed by all of its dependencies. In our case that is just `kmm-ci-b` but it could be a longer list.
+Kernel modules sometimes have dependencies on others modules so those dependencies have to be loaded in advance. In the following example `kmm-ci-a` depends on `kmm-ci-b` so we will set `modulesLoadingOrder` and then the list with the `moduleName` as the first entry followed by all of its dependencies. In our case it is just `kmm-ci-b` but it could be a longer list with multiple dependency modules.
 
 Apply next Module and `kmm-ci-b` will be loaded before `kmm-ci-a`:
 
@@ -330,5 +342,32 @@ Apply next Module and `kmm-ci-b` will be loaded before `kmm-ci-a`:
       selector:
         node-role.kubernetes.io/worker: ""
 ```
+
+And again a simple `lsmod` should show both modules loaded:
+
+```bash
+enrique@fedora labsv1.1 → oc exec -it kmm-ci-a-zbkr8-6594d -- lsmod | grep kmm
+kmm_ci_a               16384  0
+kmm_ci_b               16384  0
+```
+
 ## Troubleshoot
 
+In addition to standard OpenShift tools such as [must-gather](https://docs.openshift.com/container-platform/4.13/support/gathering-cluster-data.html) or general system [event](https://docs.openshift.com/container-platform/4.13/nodes/clusters/nodes-containers-events.html) information which can be really helpful for debugging, other possible sources of information we may check are:
+
+1) Operator logs:
+```
+oc logs -fn openshift-kmm deployments/kmm-operator-controller-manager
+```
+2) Module pod logs:
+```
+oc logs -fn openshift-kmm -l=kmm.node.kubernetes.io/module.name=<module-name>
+```
+3) DaemonSet description:
+```
+oc describe ds -n openshift-kmm -l=kmm.node.kubernetes.io/module.name=<module-name>
+```
+4) Module description:
+```
+oc describe module <module-name>
+```
