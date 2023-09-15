@@ -8,9 +8,3 @@ RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2
 RUN curl -sL "https://mirror.openshift.com/pub/openshift-v4/clients/rosa/latest/rosa-linux.tar.gz" -o "rosa.tar.gz" && \
     tar xfvz rosa.tar.gz --no-same-owner && mv rosa /usr/local/bin/rosa
 
-ENV PORT 8081
-EXPOSE 8081
-WORKDIR examples/rosa-classic-with-unmanaged-oidc
-RUN terraform init
-RUN ls -l
-
